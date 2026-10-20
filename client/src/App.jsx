@@ -5,10 +5,12 @@ import {
   Briefcase,
   ExternalLink,
   Trash2,
+  Pencil,
   CheckCircle2,
   Clock,
   XCircle,
   Award,
+  FileText,
 } from "lucide-react";
 import {
   SignedIn,
@@ -18,6 +20,7 @@ import {
   useAuth,
 } from "@clerk/clerk-react";
 import AddJobModal from "./components/AddJobModal";
+import EditJobModal from "./components/EditJobModal";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
@@ -26,9 +29,12 @@ export default function App() {
   const { getToken } = useAuth();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Helper to get authenticated axios client
+  // Modal States
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedJobToEdit, setSelectedJobToEdit] = useState(null);
+
   const api = async () => {
     const token = await getToken();
     return axios.create({
@@ -63,6 +69,16 @@ export default function App() {
     }
   };
 
+  const handleUpdateJob = async (jobId, updatedData) => {
+    try {
+      const client = await api();
+      const res = await client.put(`/jobs/${jobId}`, updatedData);
+      setJobs(jobs.map((j) => (j._id === jobId ? res.data : j)));
+    } catch (err) {
+      console.error("Error updating job:", err);
+    }
+  };
+
   const handleStatusChange = async (id, newStatus) => {
     try {
       const client = await api();
@@ -81,6 +97,11 @@ export default function App() {
     } catch (err) {
       console.error("Error deleting job:", err);
     }
+  };
+
+  const handleOpenEdit = (job) => {
+    setSelectedJobToEdit(job);
+    setIsEditModalOpen(true);
   };
 
   const totalApplied = jobs.length;
@@ -115,7 +136,7 @@ export default function App() {
           <div className="flex items-center gap-4">
             <SignedIn>
               <button
-                onClick={() => setIsModalOpen(true)}
+                onClick={() => setIsAddModalOpen(true)}
                 className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm"
               >
                 <Plus className="w-4 h-4" /> Add Application
@@ -208,7 +229,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Applications Table */}
+          {/* Job Pipeline Table */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/50">
               <h2 className="text-base font-semibold text-slate-800">
@@ -236,6 +257,7 @@ export default function App() {
                       <th className="py-3 px-6 font-medium">Company</th>
                       <th className="py-3 px-6 font-medium">Position</th>
                       <th className="py-3 px-6 font-medium">Status</th>
+                      <th className="py-3 px-6 font-medium">Notes</th>
                       <th className="py-3 px-6 font-medium">Applied Date</th>
                       <th className="py-3 px-6 font-medium text-right">
                         Actions
@@ -278,16 +300,40 @@ export default function App() {
                             <option value="Rejected">Rejected</option>
                           </select>
                         </td>
-                        <td className="py-4 px-6 text-slate-500 text-xs">
+                        <td className="py-4 px-6 text-slate-600 max-w-xs">
+                          {job.notes ? (
+                            <div
+                              className="truncate text-xs bg-slate-50 border border-slate-200/80 px-2.5 py-1 rounded-md text-slate-600"
+                              title={job.notes}
+                            >
+                              {job.notes}
+                            </div>
+                          ) : (
+                            <span className="text-slate-300 text-xs italic">
+                              No notes
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-4 px-6 text-slate-500 text-xs whitespace-nowrap">
                           {new Date(job.appliedDate).toLocaleDateString()}
                         </td>
                         <td className="py-4 px-6 text-right">
-                          <button
-                            onClick={() => handleDeleteJob(job._id)}
-                            className="text-slate-400 hover:text-rose-600 p-1.5 transition-colors rounded-md hover:bg-rose-50"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => handleOpenEdit(job)}
+                              className="text-slate-400 hover:text-blue-600 p-1.5 transition-colors rounded-md hover:bg-blue-50"
+                              title="Edit job application"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteJob(job._id)}
+                              className="text-slate-400 hover:text-rose-600 p-1.5 transition-colors rounded-md hover:bg-rose-50"
+                              title="Delete job application"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -299,11 +345,22 @@ export default function App() {
         </SignedIn>
       </main>
 
-      {/* Modal Component */}
+      {/* Add Modal */}
       <AddJobModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
         onJobAdded={handleAddJob}
+      />
+
+      {/* Edit Modal */}
+      <EditJobModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setSelectedJobToEdit(null);
+        }}
+        onJobUpdated={handleUpdateJob}
+        job={selectedJobToEdit}
       />
     </div>
   );
